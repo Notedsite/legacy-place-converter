@@ -1,7 +1,7 @@
-# IMPORTANT!!! This project has been abandoned by me in it's current state. Feel free to fork it or modify it as stated in the licence :)
-![Logo](https://raw.githubusercontent.com/BakonBot/legacy-place-converter/master/lpcLogo.png)
+# Attention! This was forked from BakonBot's original repository. I don't plan to maintain this fork all the time. Below is the original README that Bakon wrote.
+![Logo](https://raw.githubusercontent.com/andry6703/legacy-place-converter/master/lpcLogo.png)
 # Roblox Legacy Place Converter
-## [Download (Version 1.3a)](https://github.com/BakonBot/legacy-place-converter/releases/download/1.3a/Roblox_Legacy_Place_Converter_1.3a.exe)
+## [Download (Version 1.4)](https://github.com/andry6703/legacy-place-converter/releases/download/1.4/Roblox_Legacy_Place_Converter.exe)
 ## What does it do?
 Converts recent Roblox places to a format that old Roblox versions can read.
 ## How do I use it?
