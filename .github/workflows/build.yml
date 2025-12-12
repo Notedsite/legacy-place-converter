@@ -1,4 +1,4 @@
-name: Build Desktop Application
+name: Compile Legacy Place Convertor
 
 on:
   push:
@@ -8,31 +8,28 @@ on:
 
 jobs:
   build:
-    # .NET Framework requires a Windows environment
+    # Use a Windows runner since this is likely a .NET Framework application
     runs-on: windows-latest 
 
     steps:
     - uses: actions/checkout@v4
-      # Checks out your repository's code
+      # Step 1: Downloads your code. Essential!
 
-    - name: Setup MSBuild
-      # This action sets up the MSBuild path on the runner
+    - name: Setup MSBuild and .NET Framework
+      # Step 2: Configures the build environment
       uses: microsoft/setup-msbuild@v2
 
-    - name: Restore NuGet packages
-      # Restores any dependent packages for your solution/project
-      run: nuget restore YourSolutionName.sln
+    - name: Build Application
+      # Step 3: Compiles your solution.
+      # Quotes are used around the filename because it contains spaces.
+      run: msbuild "Roblox Legacy Place Convertor.sln" /t:Rebuild /p:Configuration=Release
 
-    - name: Build Solution
-      # Calls MSBuild to compile the project into an EXE.
-      # Change 'YourSolutionName.sln' to your actual .sln file name.
-      run: msbuild YourSolutionName.sln /p:Configuration=Release /t:Rebuild /p:Platform="Any CPU"
-
-    - name: Find and Upload Executable
-      # This step finds the compiled files and makes them available for download
+    - name: Upload Compiled Executable
+      # Step 4: Packages the output (.exe and .dlls) for you to download
       uses: actions/upload-artifact@v4
       with:
-        name: YourApp-Release-EXE
+        name: Legacy-Place-Convertor-EXE
         path: |
-          **\bin\Release\YourProjectName.exe
+          # This assumes your project is named similar to the solution (e.g., in a folder named 'LegacyConvertor')
+          **\bin\Release\*.exe
           **\bin\Release\*.dll
