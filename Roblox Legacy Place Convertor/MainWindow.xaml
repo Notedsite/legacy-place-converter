@@ -8,12 +8,12 @@
         Title="Roblox Legacy Place Converter" Height="228" Width="890" Icon="Assets/converterLogo.ico" MinWidth="890" MinHeight="228">
     <Window.Background>
         <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
-            <GradientStop Color="#FF0F2630" Offset="0"/>
-            <GradientStop Color="#FF235970" Offset="1"/>
+            <GradientStop Color="#333" Offset="0"/>
+            <GradientStop Color="#232323" Offset="1"/>
         </LinearGradientBrush>
     </Window.Background>
     <Grid>
-        <Label Content="Converts new places in a way that old clients can open them" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="16" Height="35" HorizontalAlignment="Left" Width="440" Foreground="White"/>
+        <Label Content="Converts new places for use with old clients" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="16" Height="35" HorizontalAlignment="Left" Width="440" Foreground="White"/>
         <Label x:Name="PlaceSelectedLabel" Content="File selected: None" HorizontalAlignment="Left" Margin="10,45,0,0" VerticalAlignment="Top" Foreground="White"/>
         <Button x:Name="BrowseButton" Content="Browse" HorizontalAlignment="Left" Margin="15,71,0,0" VerticalAlignment="Top" Width="75" Height="24" Click="BrowseButton_Click"/>
         <Button x:Name="ConvertButton" Content="CONVERT" HorizontalAlignment="Left" Margin="15,104,0,0" VerticalAlignment="Top" Width="125" Height="31" Click="ConvertButton_Click" FontWeight="Bold"/>
