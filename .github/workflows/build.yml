@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    # Use a Windows runner since this is likely a .NET Framework application
+    # Use a Windows runner since this is a .NET desktop application
     runs-on: windows-latest 
 
     steps:
@@ -20,9 +20,8 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Build Application
-      # Step 3: Compiles your solution.
-      # Quotes are used around the filename because it contains spaces.
-      run: msbuild "Roblox Legacy Place Convertor.sln" /t:Rebuild /p:Configuration=Release
+      # Step 3: Compiles your solution using the correct path.
+      run: msbuild "Notedsite/legacy-place-converter/Roblox Legacy Place Convertor.sln" /t:Rebuild /p:Configuration=Release
 
     - name: Upload Compiled Executable
       # Step 4: Packages the output (.exe and .dlls) for you to download
@@ -30,6 +29,6 @@ jobs:
       with:
         name: Legacy-Place-Convertor-EXE
         path: |
-          # This assumes your project is named similar to the solution (e.g., in a folder named 'LegacyConvertor')
+          # This glob pattern finds the output files inside the 'Release' folders:
           **\bin\Release\*.exe
           **\bin\Release\*.dll
