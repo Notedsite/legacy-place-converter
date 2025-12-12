@@ -1,0 +1,38 @@
+name: Build Desktop Application
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    # .NET Framework requires a Windows environment
+    runs-on: windows-latest 
+
+    steps:
+    - uses: actions/checkout@v4
+      # Checks out your repository's code
+
+    - name: Setup MSBuild
+      # This action sets up the MSBuild path on the runner
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore NuGet packages
+      # Restores any dependent packages for your solution/project
+      run: nuget restore YourSolutionName.sln
+
+    - name: Build Solution
+      # Calls MSBuild to compile the project into an EXE.
+      # Change 'YourSolutionName.sln' to your actual .sln file name.
+      run: msbuild YourSolutionName.sln /p:Configuration=Release /t:Rebuild /p:Platform="Any CPU"
+
+    - name: Find and Upload Executable
+      # This step finds the compiled files and makes them available for download
+      uses: actions/upload-artifact@v4
+      with:
+        name: YourApp-Release-EXE
+        path: |
+          **\bin\Release\YourProjectName.exe
+          **\bin\Release\*.dll
