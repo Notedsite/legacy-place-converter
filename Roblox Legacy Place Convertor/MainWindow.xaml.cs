@@ -190,160 +190,214 @@ private void GithubHyperlink_RequestNavigate(object sender, RequestNavigateEvent
         }
     }
 
-    private void ConvertButton_Click(object sender, RoutedEventArgs e)
+    private async void ConvertButton_Click(object sender, RoutedEventArgs e)
+{
+    if (isConverting) return;
+
+    if (string.IsNullOrWhiteSpace(fileToConvertPath))
     {
-        if (isConverting == true) // If you somehow managed to click the Convert button twice
+        MessageBox.Show("Please select a model or place you'd like to convert by clicking on 'Browse'", "Cannot convert place", MessageBoxButton.OK, MessageBoxImage.Error);
+        return;
+    }
+
+    // Optimization: Don't read all lines just to check the header. 
+    // This saves memory on massive files that might be on a single line.
+    using (StreamReader reader = new StreamReader(fileToConvertPath))
+    {
+        char[] buffer = new char[50];
+        await reader.ReadAsync(buffer, 0, buffer.Length);
+        string header = new string(buffer);
+        if (header.Contains("<roblox!"))
         {
+            MessageBox.Show("Please select a model or place in Roblox XML format.", "Cannot convert place", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
-        if (string.IsNullOrWhiteSpace(fileToConvertPath)) // When you haven't selected a place file
+    }
+
+    // Ask user where to save
+    SaveFileDialog fileDialog = new SaveFileDialog();
+    fileDialog.Filter = "Roblox XML Place Files (*.rbxl)|*.rbxl|Roblox XML Model Files (*.rbxm)|*.rbxm";
+    if (fileDialog.ShowDialog() != true) return;
+
+    newFilePath = fileDialog.FileName;
+
+    // UI Updates
+    isConverting = true;
+    ConvertButton.IsEnabled = false;
+    ProgressBar.Value = 0;
+    ProgressLabel.Content = "Starting...";
+    
+    // Capture the settings from UI checkboxes before going to background thread
+    // (UI elements cannot be accessed safely from a background thread)
+    bool convertColors = ColorCheckbox.IsChecked == true;
+    bool removeUnions = UnionCheckbox.IsChecked == false;
+    bool convertScripts = ScriptConvertCheckbox.IsChecked == true;
+    bool convertFolders = ConvertFoldersCheckbox.IsChecked == true;
+    bool fixAssetIds = ChangeRbxassetidCheckbox.IsChecked == true;
+    bool convertTextSize = ChangeTextSizeToFontSizeCheckbox.IsChecked == true;
+
+    try
+    {
+        // Run the heavy lifting on a background thread
+        await Task.Run(() => 
         {
-            MessageBox.Show("Please select a model or place you'd like to convert by clicking on 'Browse'", "Cannot convert place", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
+            ProcessFile(fileToConvertPath, newFilePath, 
+                convertColors, removeUnions, convertScripts, 
+                convertFolders, fixAssetIds, convertTextSize);
+        });
 
-        string[] file = File.ReadAllLines(fileToConvertPath);
-
-        foreach (var line in file)
-        {
-            if (line.Contains("<roblox!"))
-            {
-                MessageBox.Show("Please select a model or place in Roblox XML format.", "Cannot convert place", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-        }
-
-        isConverting = true;
-        ConvertButton.IsEnabled = false;
-        ProgressBar.Value = 0;
-        ProgressLabel.Content = "";
-
-        // Ask user where to save the copy of the file
-        SaveFileDialog fileDialog = new SaveFileDialog();
-        fileDialog.Filter = "Roblox XML Place Files (*.rbxl)|*.rbxl|Roblox XML Model Files (*.rbxm)|*.rbxm";
-        if (fileDialog.ShowDialog() != true)
-        {
-            isConverting = false;
-            ConvertButton.IsEnabled = true;
-            return;
-        }
-        newFilePath = fileDialog.FileName;
-        File.Copy(fileToConvertPath, newFilePath, true);
-        // Read file contents
-        string fileContents = File.ReadAllText(newFilePath);
-
-        // Search for terrain in place file, necessary for place to even open on old Roblox versions. When it finds its start and end, it removes the terrain part completely.
-
-        int terrainIndex = fileContents.IndexOf("<Item class=\"Terrain\"", StringComparison.Ordinal);
-        if (terrainIndex != -1)
-        {
-            int terrainEndIndex = fileContents.IndexOf("</Item>", terrainIndex, StringComparison.Ordinal);
-            if (terrainEndIndex != -1)
-            {
-                fileContents = fileContents.Remove(terrainIndex, terrainEndIndex - terrainIndex + 7);
-
-            }
-        }
-
-        //Convert TextSize to Legacy FontSize
-        if (ChangeTextSizeToFontSizeCheckbox.IsChecked == true)
-        {
-            int[] FontSizes = new int[10] { 8, 9, 10, 11, 12, 14, 18, 24, 36, 48 };
-            Dictionary<int, int> converted = new Dictionary<int, int>();
-            Regex rg = new Regex(@"<float name=""TextSize"">(\d{1,3})</float>");
-            MatchCollection matchedfloats = rg.Matches(fileContents);
-
-            foreach (Match ItemMatch in matchedfloats)
-            {
-                var nearest = FontSizes.OrderBy(x => Math.Abs((long)x - Int32.Parse(ItemMatch.Groups[1].Value))).First();
-                converted[Int32.Parse(ItemMatch.Groups[1].Value)] = nearest;
-            }
-
-            foreach (KeyValuePair<int, int> entry in converted)
-            {
-                // do something with entry.Value or entry.Key
-                fileContents = fileContents.Replace("<float name=\"TextSize\">" + entry.Key.ToString() + "</float>", "<token name=\"FontSize\">" + Array.IndexOf(FontSizes, entry.Value).ToString() + "</token>");
-            }
-        }
-
-        // Convert colors from Color3uint8 to BrickColor
-        if (ColorCheckbox.IsChecked == true)
-        {
-            foreach (KeyValuePair<string, string> entry in color3uint8ToBrickColor)
-            {
-                fileContents = fileContents.Replace("<Color3uint8 name=\"Color3uint8\">" + entry.Key + "</Color3uint8>", "<int name=\"BrickColor\">" + entry.Value + "</int>");
-            }
-        }
-
-        //If Union data is turned off, removes union data
-        if (UnionCheckbox.IsChecked == false)
-        {
-            int unionIndex = fileContents.IndexOf("<Item class=\"NonReplicatedCSGDictionaryService\"", StringComparison.Ordinal);
-            if (unionIndex != -1)
-            {
-                int binaryStringIndex = fileContents.IndexOf("<Item class=\"BinaryStringValue\"", unionIndex, StringComparison.Ordinal);
-                while (binaryStringIndex != -1)
-                {
-                    int binaryStringEndIndex = fileContents.IndexOf("</Item>", binaryStringIndex, StringComparison.Ordinal);
-                    if (binaryStringEndIndex != -1)
-                    {
-                        fileContents = fileContents.Remove(binaryStringIndex, binaryStringEndIndex - binaryStringIndex + 7);
-                    }
-                    binaryStringIndex = fileContents.IndexOf("<Item class=\"BinaryStringValue\"", binaryStringIndex, StringComparison.Ordinal);
-                }
-            }
-        }
-
-        //Script conversion, removes the weird CDATA stuff if your script is multiline.
-        if (ScriptConvertCheckbox.IsChecked == true)
-        {
-            fileContents = fileContents.Replace("<ProtectedString name=\"Source\"><![CDATA[", "<ProtectedString name=\"Source\">");
-            fileContents = fileContents.Replace("]]></ProtectedString>", "</ProtectedString>");
-            //Change stuff like quotes to a format old roblox places support
-            int scriptStartIndex = fileContents.IndexOf("<ProtectedString name=\"Source\">", StringComparison.Ordinal);
-            while (scriptStartIndex != -1)
-            {
-                int scriptEndIndex = fileContents.IndexOf("</ProtectedString>", scriptStartIndex, StringComparison.Ordinal);
-                if (scriptEndIndex != -1)
-                {
-                    string scriptBeforeContents = fileContents.Substring(scriptStartIndex + 31, scriptEndIndex - scriptStartIndex - 31);
-                    if (scriptBeforeContents.Length > 0)
-                    {
-                        string scriptAfterContents = scriptBeforeContents;
-                        scriptAfterContents = scriptAfterContents.Replace("\"", "&quot;");
-                        scriptAfterContents = scriptAfterContents.Replace("\'", "&apos;");
-                        scriptAfterContents = scriptAfterContents.Replace("<", "&lt;");
-                        scriptAfterContents = scriptAfterContents.Replace(">", "&gt;");
-                        fileContents = fileContents.Replace(scriptBeforeContents, scriptAfterContents);
-                    }
-                }
-                scriptStartIndex = fileContents.IndexOf("<ProtectedString name=\"Source\">", scriptEndIndex, StringComparison.Ordinal);
-            }
-        }
-
-        //Changes rbxassetid to longer link variant, fixes assets not loading in older clients
-        if (ChangeRbxassetidCheckbox.IsChecked == true)
-        {
-            fileContents = fileContents.Replace("rbxassetid://", "http://www.roblox.com/asset/?id=");
-        }
-
-        //Convert folders to models, since old Roblox clients don't support folders and therefore everything inside of folders isn't shown
-        if (ConvertFoldersCheckbox.IsChecked == true)
-        {
-            fileContents = fileContents.Replace("<Item class=\"Folder\"", "<Item class=\"Model\"");
-        }
-
-        
-
-        // Write fileContents string to the copy file
-        File.WriteAllText(newFilePath, fileContents);
-        // Done :D
         ProgressBar.Value = 100;
         ProgressLabel.Content = "Done!";
         MessageBox.Show("Conversion done!", "Conversion status", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Error during conversion: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        ProgressLabel.Content = "Error";
+    }
+    finally
+    {
         isConverting = false;
         ConvertButton.IsEnabled = true;
     }
+}
+
+// The heavy logic method - optimized for memory
+private void ProcessFile(string sourcePath, string destPath, 
+    bool convertColors, bool removeUnions, bool convertScripts, 
+    bool convertFolders, bool fixAssetIds, bool convertTextSize)
+{
+    // 1. Copy the file first
+    File.Copy(sourcePath, destPath, true);
+    string fileContents = File.ReadAllText(destPath);
+
+    // 2. Remove Terrain
+    int terrainIndex = fileContents.IndexOf("<Item class=\"Terrain\"", StringComparison.Ordinal);
+    if (terrainIndex != -1)
+    {
+        int terrainEndIndex = fileContents.IndexOf("</Item>", terrainIndex, StringComparison.Ordinal);
+        if (terrainEndIndex != -1)
+        {
+            fileContents = fileContents.Remove(terrainIndex, terrainEndIndex - terrainIndex + 7);
+        }
+    }
+
+    // 3. Convert TextSize (Optimized to Single Pass)
+    if (convertTextSize)
+    {
+        int[] FontSizes = new int[] { 8, 9, 10, 11, 12, 14, 18, 24, 36, 48 };
+        Regex rg = new Regex(@"<float name=""TextSize"">(\d{1,3})</float>");
+        
+        fileContents = rg.Replace(fileContents, (match) =>
+        {
+            if (int.TryParse(match.Groups[1].Value, out int currentSize))
+            {
+                var nearest = FontSizes.OrderBy(x => Math.Abs((long)x - currentSize)).First();
+                int fontSizeIndex = Array.IndexOf(FontSizes, nearest);
+                return $"<token name=\"FontSize\">{fontSizeIndex}</token>";
+            }
+            return match.Value;
+        });
+    }
+
+    // 4. Convert Colors (CRITICAL OPTIMIZATION: Single Pass)
+    if (convertColors)
+    {
+        // Instead of looping the dictionary 100 times, we regex find ALL Color3uint8 tags
+        // and look them up in the dictionary on the fly.
+        Regex colorRegex = new Regex(@"<Color3uint8 name=""Color3uint8"">(\d+)</Color3uint8>");
+        
+        fileContents = colorRegex.Replace(fileContents, (match) =>
+        {
+            string colorKey = match.Groups[1].Value;
+            if (color3uint8ToBrickColor.TryGetValue(colorKey, out string brickColorId))
+            {
+                return $"<int name=\"BrickColor\">{brickColorId}</int>";
+            }
+            return match.Value; // Keep original if not found
+        });
+    }
+
+    // 5. Remove Unions
+    if (removeUnions)
+    {
+        int unionIndex = fileContents.IndexOf("<Item class=\"NonReplicatedCSGDictionaryService\"", StringComparison.Ordinal);
+        if (unionIndex != -1)
+        {
+            // Note: This while-loop approach is still risky for memory on massive files, 
+            // but acceptable for now since we saved memory on the colors.
+            int binaryStringIndex = fileContents.IndexOf("<Item class=\"BinaryStringValue\"", unionIndex, StringComparison.Ordinal);
+            while (binaryStringIndex != -1)
+            {
+                int binaryStringEndIndex = fileContents.IndexOf("</Item>", binaryStringIndex, StringComparison.Ordinal);
+                if (binaryStringEndIndex != -1)
+                {
+                    fileContents = fileContents.Remove(binaryStringIndex, binaryStringEndIndex - binaryStringIndex + 7);
+                }
+                binaryStringIndex = fileContents.IndexOf("<Item class=\"BinaryStringValue\"", binaryStringIndex, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    // 6. Script Conversion
+    if (convertScripts)
+    {
+        // Simple replacements are fast
+        fileContents = fileContents.Replace("<ProtectedString name=\"Source\"><![CDATA[", "<ProtectedString name=\"Source\">")
+                                   .Replace("]]></ProtectedString>", "</ProtectedString>");
+
+        // For the content escaping, we can use a Regex to find the Source tags 
+        // to avoid manual index math, but sticking to your logic for stability:
+        int scriptStartIndex = fileContents.IndexOf("<ProtectedString name=\"Source\">", StringComparison.Ordinal);
+        while (scriptStartIndex != -1)
+        {
+            int scriptEndIndex = fileContents.IndexOf("</ProtectedString>", scriptStartIndex, StringComparison.Ordinal);
+            if (scriptEndIndex != -1)
+            {
+                // Extract content
+                int contentStart = scriptStartIndex + 31;
+                int length = scriptEndIndex - contentStart;
+                if (length > 0)
+                {
+                    string originalContent = fileContents.Substring(contentStart, length);
+                    
+                    // Only replace if necessary to save allocations
+                    if (originalContent.IndexOfAny(new[] { '"', '\'', '<', '>' }) != -1)
+                    {
+                        string newContent = originalContent
+                            .Replace("\"", "&quot;")
+                            .Replace("\'", "&apos;")
+                            .Replace("<", "&lt;")
+                            .Replace(">", "&gt;");
+                        
+                        // We must reconstruct the string
+                        fileContents = fileContents.Remove(contentStart, length)
+                                                   .Insert(contentStart, newContent);
+                        
+                        // Adjust index because string length changed
+                        scriptEndIndex = contentStart + newContent.Length; 
+                    }
+                }
+            }
+            scriptStartIndex = fileContents.IndexOf("<ProtectedString name=\"Source\">", scriptEndIndex, StringComparison.Ordinal);
+        }
+    }
+
+    // 7. Asset IDs
+    if (fixAssetIds)
+    {
+        fileContents = fileContents.Replace("rbxassetid://", "http://www.roblox.com/asset/?id=");
+    }
+
+    // 8. Convert Folders
+    if (convertFolders)
+    {
+        fileContents = fileContents.Replace("<Item class=\"Folder\"", "<Item class=\"Model\"");
+    }
+
+    // Write final result
+    File.WriteAllText(destPath, fileContents);
+}
 }
 
 }
