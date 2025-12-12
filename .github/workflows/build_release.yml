@@ -1,0 +1,45 @@
+name: Build Executable
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger this workflow when a tag starting with 'v' is pushed
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: pip install pyinstaller
+    - name: Build executable
+      run: pyinstaller --onefile your_script_name.py # Replace 'your_script_name.py' with your actual main script file
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Your-App-Executable
+        path: dist/*.exe
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/*.exe
+        asset_name: Your-App.exe # Rename as appropriate
+        asset_content_type: application/vnd.microsoft.portable-executable
